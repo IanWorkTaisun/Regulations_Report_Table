@@ -179,7 +179,7 @@ createApp({
             setTimeout(() => drawTypeTrend(idx, grouped.value[idx].items), 50);
         }
 
-        // 圓餅圖（含占比/名稱/件數 label）
+        // 圓餅圖（legend 右側，圓內只顯示百分比+件數）
         function drawMainTypeChart() {
             if (!window.Chart) return;
             const typeMap = {};
@@ -201,14 +201,19 @@ createApp({
                 },
                 options: {
                     plugins: {
-                        legend: { display: false },
+                        legend: {
+                            display: true,
+                            position: 'right', // 右側 legend
+                            labels: {
+                                font: { size: 14 }
+                            }
+                        },
                         datalabels: {
                             color: '#333',
-                            font: { weight: 'bold', size:14 },
+                            font: { weight: 'bold', size: 14 },
                             formatter: function(val, ctx) {
-                                const label = ctx.chart.data.labels[ctx.dataIndex];
                                 const percent = total ? Math.round(val / total * 100) : 0;
-                                return `${label}\n${percent}%（${val}件）`;
+                                return `${percent}%\n（${val}件）`;
                             }
                         }
                     }
