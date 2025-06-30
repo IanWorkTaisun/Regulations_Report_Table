@@ -1,304 +1,546 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>法規公告可視化</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食品法規及相關情報儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Brilliant Blues & Professional Neutrals -->
+    <!-- Application Structure Plan: This application is structured as a dynamic, single-page infographic dashboard, designed to transform static regulatory data into actionable intelligence. The narrative flow is as follows: 1. **At-a-Glance KPIs**: The top row immediately presents four critical metrics, serving as the executive summary and answering "What is the most urgent situation right now?". 2. **Interactive Exploration Tools**: The filter bar acts as the user's control panel, enabling them to transition from a high-level overview to granular detail by searching, filtering, and segmenting the data. 3. **Thematic Deep Dive**: The main content area is tabbed, separating the 'List View' (for operational detail) from the 'Chart Analysis' (for strategic insight). This structure caters to different user goals within the same dataset. The List View is organized into accordions by '情資類型', grouping related information thematically for easier consumption. This interactive, task-oriented structure was deliberately chosen over a static report to empower users to actively explore and derive their own insights from the data. -->
+    <!-- Visualization & Content Choices: Each visualization is chosen to fulfill a specific narrative goal, adhering to the NO SVG/Mermaid constraint. 1. **KPIs (Inform)**: Big numbers in styled cards (HTML/CSS) are used to convey key metrics instantly. Justification: Most effective way to highlight single, important figures. 2. **Traffic Lights (Inform)**: Colored divs with CSS box-shadow for a 'glow' effect. Justification: Provides an immediate, intuitive visual cue for priority, directly translating the user's core business logic. 3. **Accordion List (Organize)**: Structured HTML (<details>, <summary>) with JS for dynamic content. Justification: Manages information complexity, preventing cognitive overload from a long, flat list. 4. **Type Distribution Donut Chart (Compare)**: Chart.js/Canvas. Justification: Effectively shows the composition of all intelligence types. 5. **Departmental Workload Bar Chart (Compare)**: Chart.js/Canvas. Justification: Compares the regulatory burden across different departments. Its labels are wrapped. 6. **Overall Intelligence Trend Line Chart (Change)**: Chart.js/Canvas. Justification: Visualizes the total volume of new intelligence over time. 7. **Categorical Trend Line Chart (Change/Compare)**: Chart.js/Canvas. Justification: Compares the volume trends of each intelligence category over time, revealing specific risk patterns. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
     <style>
-        body { padding: 20px; font-family: Microsoft JhengHei; background: #f5f5f5; }
-        .block-card { background: #fff; margin-bottom: 30px; border-radius: 10px; box-shadow: 0 2px 12px #0001;}
-        .block-header { padding: 16px 20px; border-bottom: 1px solid #eee; background: #f3f8fa;}
-        .block-title { font-size: 1.2rem; font-weight: bold; color: #007b83;}
-        .block-count { color: #888; font-size: 0.95em; margin-left: 8px; }
-        .search-box { margin-bottom: 30px; }
-        .table th, .table td { vertical-align: middle; }
-        .sortable:hover { color: #2c6db3; cursor: pointer; text-decoration: underline; }
-        .arrow { font-size: 0.8em; }
-        .more-btn { background: #f7f7f7; color: #007b83; border: 1px solid #eee; border-radius: 5px; padding: 4px 14px; margin: 0 0 14px 0; }
-        .pie-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px;}
-        .pie-links a { padding: 4px 8px; background: #f4f8fc; border-radius: 4px; font-size: 0.95em; color: #0066cc; text-decoration: none;}
-        .pie-links a:hover { background: #d6e6f8;}
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        .chart-container { position: relative; width: 100%; max-width: 900px; margin: auto; height: 400px; max-height: 50vh; }
+        .traffic-light { width: 1rem; height: 1rem; border-radius: 9999px; flex-shrink: 0; margin-top: 0.25rem; }
+        .light-red { background-color: #ef4444; box-shadow: 0 0 10px #ef4444; }
+        .light-yellow { background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+        .light-green { background-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
+        .light-grey { background-color: #9ca3af; }
+        .tab-btn.active { border-color: #2563eb; color: #2563eb; background-color: #dbeafe; }
+        details[open] > summary { background-color: #1e3a8a; color: white; }
+        .kpi-card { border-left-width: 4px; }
     </style>
 </head>
-<body>
-<div id="app">
-    <h1 class="mb-3">法規公告看板</h1>
-    <div class="search-box">
-        <input v-model="searchText" type="text" class="form-control" placeholder="輸入標題或內容關鍵字...">
-    </div>
+<body class="text-gray-800">
 
-    <!-- 主分布圖（各類型數量） -->
-    <div class="card mb-4" style="max-width:700px;margin:auto;">
-        <div class="card-body">
-            <h5 class="card-title">各類型公告分布</h5>
-            <canvas id="mainTypeChart"></canvas>
-            <div class="pie-links">
-                <a v-for="type in pieTypes" :href="'#block_' + type" :key="type">{{ type }}</a>
-            </div>
-        </div>
-    </div>
+    <div class="p-4 md:p-8 max-w-screen-xl mx-auto">
 
-    <template v-if="grouped.length">
-        <div v-for="(block, idx) in grouped" :key="block.type" :id="'block_' + block.type" class="block-card">
-            <div class="block-header d-flex align-items-center justify-content-between">
-                <span class="block-title">{{ block.type }}</span>
-                <span class="block-count">共 {{ block.items.length }} 筆</span>
+        <header class="mb-8 pb-4 border-b border-gray-200">
+            <h1 class="text-3xl font-bold text-gray-900">食品法規及相關情報儀表板</h1>
+            <p class="text-gray-500 mt-2">國內外最新食品相關法規及情報變動之鑑別情況管理儀表板</p>
+        </header>
+
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="kpi-card bg-white p-5 rounded-lg shadow-md border-red-500" title="定義：適用性為「適用」、狀態為「鑑別執行中」且等級為「A」的項目總數。">
+                <h3 class="text-sm font-medium text-gray-500">高度優先處理項目</h3>
+                <p id="kpi-high-priority" class="text-3xl font-bold mt-1 text-red-600">0</p>
             </div>
-            <div class="p-3 pb-2">
-                <!-- 小時序圖：折線+數值 -->
-                <div style="max-width:380px;margin-bottom:12px;">
-                    <canvas :id="'typeTrend_' + idx"></canvas>
-                </div>
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead>
-                    <tr>
-                        <th @click="sortBy('date')" class="sortable">
-                            日期
-                            <span v-if="sortField==='date'">
-                                <span v-if="sortDirection==='asc'" class="arrow">&#9650;</span>
-                                <span v-else class="arrow">&#9660;</span>
-                            </span>
-                        </th>
-                        <th @click="sortBy('title')" class="sortable">
-                            標題
-                            <span v-if="sortField==='title'">
-                                <span v-if="sortDirection==='asc'" class="arrow">&#9650;</span>
-                                <span v-else class="arrow">&#9660;</span>
-                            </span>
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <!-- 只顯示最新日期資料 -->
-                    <tr v-for="item in showItems(block)" :key="item.url">
-                        <td>{{ formatDate(item.date) }}</td>
-                        <td><a :href="item.url" target="_blank">{{ item.title }}</a></td>
-                    </tr>
-                    </tbody>
-                </table>
-                <div v-if="block.items.length > showItems(block).length">
-                    <button class="more-btn" @click="toggleMore(idx)">
-                        {{ moreOpen[idx] ? "收起" : "更多..." }}
-                    </button>
+            <div class="kpi-card bg-white p-5 rounded-lg shadow-md border-blue-500" title="定義：適用性為「適用」且狀態不為「結案」的所有項目總數。">
+                <h3 class="text-sm font-medium text-gray-500">所有進行中項目</h3>
+                <p id="kpi-in-progress" class="text-3xl font-bold mt-1 text-blue-600">0</p>
+            </div>
+            <div class="kpi-card bg-white p-5 rounded-lg shadow-md border-amber-500" title="定義：「適用性」欄位尚未被填寫，需要進行初步評估的項目總數。">
+                <h3 class="text-sm font-medium text-gray-500">尚待評估項目</h3>
+                <p id="kpi-pending" class="text-3xl font-bold mt-1 text-amber-600">0</p>
+            </div>
+            <div class="kpi-card bg-white p-5 rounded-lg shadow-md border-gray-400" title="定義：公告日期在過去7天内的所有項目總數。">
+                <h3 class="text-sm font-medium text-gray-500">本週新增情資</h3>
+                <p id="kpi-new-this-week" class="text-3xl font-bold mt-1">0</p>
+            </div>
+        </section>
+
+        <section class="bg-white p-4 rounded-lg shadow-md mb-8 flex flex-col md:flex-row gap-4 items-center">
+            <input type="search" id="search-box" placeholder="搜尋標題、影響單位關鍵字..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+            <select id="filter-applicability" class="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+                <option value="all">全部適用性</option>
+            </select>
+             <select id="filter-status" class="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+                <option value="all">全部狀態</option>
+            </select>
+             <select id="filter-level" class="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+                <option value="all">全部等級</option>
+            </select>
+            <button id="reset-filters" class="w-full md:w-auto px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors">重設</button>
+        </section>
+
+        <main class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+            <div class="border-b border-gray-200">
+                <nav id="tab-nav" class="-mb-px flex space-x-6" aria-label="Tabs">
+                    <button data-tab="list-view" class="tab-btn active whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition">清單檢視</button>
+                    <button data-tab="chart-view" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 transition">圖表分析</button>
+                </nav>
+            </div>
+
+            <div id="list-view" class="tab-content py-6">
+                <div id="content-area" class="space-y-4">
+                     <div class="text-center text-gray-500 py-10">資料載入中...</div>
                 </div>
             </div>
-        </div>
-    </template>
-    <div v-else class="text-center mt-5 text-secondary fs-4">今日無新增法規公告</div>
-</div>
 
-<script>
-const { createApp, ref, computed, onMounted } = Vue;
+            <div id="chart-view" class="tab-content hidden py-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="font-bold text-center mb-4 text-gray-700">情資類型分佈</h3>
+                        <div class="chart-container" style="height:350px;">
+                            <canvas id="type-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                         <h3 class="font-bold text-center mb-4 text-gray-700">各影響單位數量(件)</h3>
+                        <div class="chart-container" style="height:350px;">
+                            <canvas id="department-chart"></canvas>
+                        </div>
+                    </div>
+                     <div class="bg-gray-50 p-4 rounded-lg shadow-inner col-span-1 lg:col-span-2">
+                         <h3 class="font-bold text-center mb-4 text-gray-700">總體情資每日趨勢 (自2025-06-09)</h3>
+                        <div class="chart-container" style="height:350px;">
+                            <canvas id="overall-trend-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner col-span-1 lg:col-span-2">
+                        <h3 class="font-bold text-center mb-4 text-gray-700">各類型情資每日趨勢 (自2025-06-09)</h3>
+                       <div class="chart-container" style="height:350px;">
+                           <canvas id="type-trend-chart"></canvas>
+                       </div>
+                   </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-createApp({
-    setup() {
-        const regulations = ref([]);
-        const searchText = ref('');
-        const sortField = ref('date');
-        const sortDirection = ref('desc');
-        const moreOpen = ref({});
-        const pieTypes = ref([]);
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        
+        let processedData = [];
+        let charts = {};
+        let moreExpandedState = {};
 
-        // 日期格式化
-        function formatDate(date) {
-            if (!date) return '未提供';
-            if (typeof date === "number" && date > 1e12) {
-                const d = new Date(date);
-                return d.toISOString().slice(0, 10);
-            }
-            if (typeof date === "string") {
-                if (/^\d{13}$/.test(date)) {
-                    const d = new Date(Number(date));
-                    return d.toISOString().slice(0, 10);
-                }
-                return date.slice(0, 10);
-            }
-            return '未提供';
-        }
-
-        // 載入 JSON（已改成你的 Apps Script API 網址）
-        async function loadData() {
+        const init = async () => {
+            const dataUrl = 'https://script.google.com/macros/s/AKfycbwH74JqBJa7gVK-QvBeZjeSaTZCrjAcMerveHxGV28fy_ERqqv3T-6UO9od-Mn86s1O/exec';
             try {
-                const response = await fetch('https://script.google.com/macros/s/AKfycbwH74JqBJa7gVK-QvBeZjeSaTZCrjAcMerveHxGV28fy_ERqqv3T-6UO9od-Mn86s1O/exec');
-                const data = await response.json();
-                regulations.value = data;
-                setTimeout(drawMainTypeChart, 100);
+                const response = await fetch(dataUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const rawData = await response.json();
+                processedData = processRawData(rawData);
+                setupEventListeners();
+                populateFilters();
+                updateDashboard();
             } catch (error) {
-                console.error('載入數據失敗:', error);
+                console.error('無法載入資料:', error);
+                document.getElementById('content-area').innerHTML = `<div class="text-center text-red-500 py-10">資料載入失敗，請檢查網路連線或聯繫管理員。</div>`;
             }
-        }
+        };
 
-        // 搜尋 & 排序
-        const filteredRegulations = computed(() => {
-            let items = [...regulations.value];
-            if (searchText.value) {
-                const keyword = searchText.value.toLowerCase();
-                items = items.filter(item =>
-                    (item.title || '').toLowerCase().includes(keyword) ||
-                    (item.announcement_type || '').toLowerCase().includes(keyword)
-                );
-            }
-            items.sort((a, b) => {
-                const valA = a[sortField.value] || '';
-                const valB = b[sortField.value] || '';
-                return sortDirection.value === 'asc'
-                    ? valA.toString().localeCompare(valB.toString())
-                    : valB.toString().localeCompare(valA.toString());
-            });
-            return items;
-        });
-
-        // 分群（不同類型不同 block）
-        const grouped = computed(() => {
-            const groupMap = {};
-            filteredRegulations.value.forEach(item => {
-                const type = item.announcement_type || '未分類';
-                if (!groupMap[type]) groupMap[type] = [];
-                groupMap[type].push(item);
-            });
-            // 把所有類型傳給 pieTypes 給圓餅圖下方做 anchor
-            pieTypes.value = Object.keys(groupMap);
-            return Object.keys(groupMap).sort().map(type => ({
-                type,
-                items: groupMap[type]
+        const processRawData = (data) => {
+            return data.map((item, index) => ({
+                id: `item-${index}`, ...item,
+                適用性: item['適用性'] || '', 狀態: item['狀態'] || '', 等級: item['等級'] || '',
+                影響單位: item['影響單位'] ? item['影響單位'].replace(/\n/g, ', ') : '',
+                date: item.date ? item.date.slice(0, 10) : ''
             }));
-        });
+        };
+        
+        const getTrafficLightInfo = (item) => {
+            if (item['適用性'] === '不適用') {
+                return { class: 'light-grey', title: '不適用：此項目已評估為不適用。' };
+            }
+            if (item['適用性'] === '適用') {
+                if (item['等級'] === 'A') return { class: 'light-red', title: '高風險/優先級 (適用、A級)' };
+                if (item['等級'] === 'B') return { class: 'light-yellow', title: '中等風險/優先級 (適用、B級)' };
+                if (item['等級'] === 'C') return { class: 'light-green', title: '低風險/優先級 (適用、C級)' };
+            }
+            return { class: 'none', title: '尚待評估或無燈號' };
+        };
 
-        // 每個區塊只顯示最新日期的資料，其餘按 more/收起 控制
-        function showItems(block) {
-            if (moreOpen.value[block.type]) return block.items;
-            const dates = block.items.map(i => formatDate(i.date));
-            const maxDate = dates.sort().reverse()[0];
-            return block.items.filter(i => formatDate(i.date) === maxDate);
-        }
-        function toggleMore(idx) {
-            moreOpen.value[grouped.value[idx].type] = !moreOpen.value[grouped.value[idx].type];
-            setTimeout(() => drawTypeTrend(idx, grouped.value[idx].items), 50);
-        }
-
-        // 圓餅圖（legend 右側，圓內只顯示百分比+件數）
-        function drawMainTypeChart() {
-            if (!window.Chart) return;
-            const typeMap = {};
-            regulations.value.forEach(i => {
-                if (i.announcement_type) {
-                    typeMap[i.announcement_type] = (typeMap[i.announcement_type] || 0) + 1;
+        const setupEventListeners = () => {
+            document.getElementById('search-box').addEventListener('input', updateDashboard);
+            document.getElementById('filter-applicability').addEventListener('change', updateDashboard);
+            document.getElementById('filter-status').addEventListener('change', updateDashboard);
+            document.getElementById('filter-level').addEventListener('change', updateDashboard);
+            document.getElementById('reset-filters').addEventListener('click', () => {
+                document.getElementById('search-box').value = '';
+                document.getElementById('filter-applicability').value = 'all';
+                document.getElementById('filter-status').value = 'all';
+                document.getElementById('filter-level').value = 'all';
+                updateDashboard();
+            });
+            document.getElementById('tab-nav').addEventListener('click', (e) => {
+                if (e.target.matches('.tab-btn')) {
+                    const tabId = e.target.dataset.tab;
+                    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.id === tabId ? content.classList.remove('hidden') : content.classList.add('hidden');
+                    });
+                    if (tabId === 'chart-view') {
+                        const filteredData = getFilteredData();
+                        renderCharts(filteredData);
+                    }
                 }
             });
-            if (window.mainChart) window.mainChart.destroy();
-            const total = Object.values(typeMap).reduce((a, b) => a + b, 0);
-            window.mainChart = new Chart(document.getElementById('mainTypeChart'), {
-                type: 'pie',
-                data: {
-                    labels: Object.keys(typeMap),
-                    datasets: [{
-                        data: Object.values(typeMap),
-                        backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#00897B']
-                    }]
-                },
-                options: {
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'right', // 右側 legend
-                            labels: {
-                                font: { size: 14 }
-                            }
-                        },
-                        datalabels: {
-                            color: '#333',
-                            font: { weight: 'bold', size: 14 },
-                            formatter: function(val, ctx) {
-                                const percent = total ? Math.round(val / total * 100) : 0;
-                                return `${percent}%\n（${val}件）`;
-                            }
-                        }
-                    }
-                },
-                plugins: [ChartDataLabels]
+            document.getElementById('content-area').addEventListener('click', e => {
+                if (e.target.matches('.more-btn')) {
+                    const type = e.target.dataset.type;
+                    moreExpandedState[type] = !moreExpandedState[type];
+                    updateDashboard();
+                }
             });
-            setTimeout(drawAllTypeTrends, 10);
-        }
+        };
 
-        // 折線圖（小型時序圖，顯示每個點數值）
-        function drawTypeTrend(idx, items) {
-            const ctx = document.getElementById('typeTrend_' + idx);
-            if (!ctx) return;
-            if (ctx._chart) { ctx._chart.destroy(); }
-            const dateMap = {};
-            items.forEach(i => {
-                const d = formatDate(i.date);
-                dateMap[d] = (dateMap[d] || 0) + 1;
+        const populateFilters = () => {
+            const applicabilities = [...new Set(processedData.map(item => item['適用性']).filter(Boolean))];
+            const statuses = [...new Set(processedData.map(item => item['狀態']).filter(Boolean))];
+            const levels = [...new Set(processedData.map(item => item['等級']).filter(Boolean))];
+            const applicabilitySelect = document.getElementById('filter-applicability');
+            applicabilities.forEach(val => applicabilitySelect.innerHTML += `<option value="${val}">${val}</option>`);
+            const statusSelect = document.getElementById('filter-status');
+            statuses.forEach(val => statusSelect.innerHTML += `<option value="${val}">${val}</option>`);
+            const levelSelect = document.getElementById('filter-level');
+            levels.forEach(val => levelSelect.innerHTML += `<option value="${val}">${val}</option>`);
+        };
+        
+        const getFilteredData = () => {
+            const searchTerm = document.getElementById('search-box').value.toLowerCase();
+            const applicability = document.getElementById('filter-applicability').value;
+            const status = document.getElementById('filter-status').value;
+            const level = document.getElementById('filter-level').value;
+            return processedData.filter(item => {
+                const searchMatch = !searchTerm || item.title.toLowerCase().includes(searchTerm) || (item.org || '').toLowerCase().includes(searchTerm) || item['影響單位'].toLowerCase().includes(searchTerm);
+                const applicabilityMatch = applicability === 'all' || item['適用性'] === applicability;
+                const statusMatch = status === 'all' || item['狀態'] === status;
+                const levelMatch = level === 'all' || item['等級'] === level;
+                return searchMatch && applicabilityMatch && statusMatch && levelMatch;
             });
-            const dates = Object.keys(dateMap).sort();
-            ctx._chart = new Chart(ctx, {
-                type: 'line',
+        };
+
+        const updateDashboard = () => {
+            const filteredData = getFilteredData();
+            renderKPIs(processedData); 
+            renderContent(filteredData);
+            if (document.querySelector('.tab-btn[data-tab="chart-view"].active')) {
+                renderCharts(filteredData);
+            }
+        };
+        
+        const renderKPIs = (data) => {
+            document.getElementById('kpi-high-priority').textContent = data.filter(item => item.適用性 === '適用' && item.狀態 === '鑑別執行中' && item.等級 === 'A').length;
+            document.getElementById('kpi-in-progress').textContent = data.filter(item => item.適用性 === '適用' && item.狀態 !== '結案' && item.狀態 !== '').length;
+            document.getElementById('kpi-pending').textContent = data.filter(item => item.適用性 === '').length;
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            document.getElementById('kpi-new-this-week').textContent = data.filter(item => item.date && new Date(item.date) >= oneWeekAgo).length;
+        };
+        
+        const renderContent = (data) => {
+            const contentArea = document.getElementById('content-area');
+            if (data.length === 0) {
+                contentArea.innerHTML = `<div class="text-center text-gray-500 py-10 bg-gray-50 rounded-lg">無符合篩選條件的項目。</div>`;
+                return;
+            }
+            const groupedByType = data.reduce((acc, item) => {
+                const type = item.announcement_type || '無類型';
+                if (!acc[type]) acc[type] = [];
+                acc[type].push(item);
+                return acc;
+            }, {});
+            const sortedTypes = Object.keys(groupedByType).sort();
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            contentArea.innerHTML = sortedTypes.map((type, index) => {
+                const items = groupedByType[type].sort((a,b) => new Date(b.date) - new Date(a.date)); // Sort items by date desc
+                const recentItems = items.filter(item => new Date(item.date) >= sevenDaysAgo);
+                const olderItems = items.filter(item => new Date(item.date) < sevenDaysAgo);
+                const isExpanded = moreExpandedState[type];
+
+                let olderItemsHtml = '';
+                if (olderItems.length > 0) {
+                    if (isExpanded) {
+                        olderItemsHtml = olderItems.map(renderItemCard).join('');
+                    }
+                    olderItemsHtml += `<div class="text-center mt-4"><button class="more-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded" data-type="${type}">${isExpanded ? '收起舊項目' : `顯示更早的 ${olderItems.length} 個項目...`}</button></div>`;
+                }
+
+                return `
+                    <details class="bg-white rounded-lg shadow-md border border-gray-200" open>
+                        <summary class="px-5 py-3 font-semibold cursor-pointer select-none text-lg transition-colors">${type} (${items.length} 則)</summary>
+                        <div class="p-4 border-t border-gray-200 space-y-4 bg-gray-50">
+                            ${recentItems.length > 0 ? recentItems.map(renderItemCard).join('') : '<p class="text-center text-gray-500 py-4">近7日無此類型項目</p>'}
+                            ${olderItemsHtml}
+                        </div>
+                    </details>
+                `;
+            }).join('');
+        };
+
+        const renderItemCard = (item) => {
+            const lightInfo = getTrafficLightInfo(item);
+            let statusBadgesHtml;
+            if (item['適用性'] === '') {
+                statusBadgesHtml = `<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-gray-700 bg-gray-200">尚待評估</span>`;
+            } else {
+                const parts = [];
+                if (item['適用性']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-red-800 bg-red-200">${item['適用性']}</span>`);
+                if (item['狀態']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-blue-800 bg-blue-200">${item['狀態']}</span>`);
+                if (item['等級']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-gray-800 bg-gray-200">等級 ${item['等級']}</span>`);
+                statusBadgesHtml = parts.join('');
+            }
+            return `
+                <div class="flex items-start gap-4 p-4 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div class="traffic-light ${lightInfo.class}" title="${lightInfo.title}"></div>
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start">
+                             <h4 class="font-bold text-blue-800 hover:text-blue-600 transition-colors mb-1 pr-4">
+                                <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+                            </h4>
+                            <span class="text-sm text-gray-500 font-medium whitespace-nowrap">${item.date}</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mt-2">
+                           ${item.狀態 === '鑑別執行中' && item['影響單位'] ? `<strong>影響單位:</strong> ${item['影響單位']}` : ''}
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-2 items-center">
+                            ${statusBadgesHtml}
+                        </div>
+                    </div>
+                </div>`;
+        };
+        
+        const chartTooltipCallback = {
+            title: function(tooltipItems) {
+                const item = tooltipItems[0]; let label = item.chart.data.labels[item.dataIndex];
+                return Array.isArray(label) ? label.join(' ') : label;
+            }
+        };
+
+        const wrapLabel = (label, maxLength) => {
+            if (typeof label !== 'string' || label.length <= maxLength) return label;
+            const words = label.split(' '); const lines = []; let currentLine = '';
+            for (const word of words) {
+                if ((currentLine + ' ' + word).length > maxLength && currentLine.length > 0) {
+                    lines.push(currentLine); currentLine = word;
+                } else { currentLine = currentLine ? currentLine + ' ' + word : word; }
+            }
+            lines.push(currentLine); return lines;
+        };
+
+        const renderCharts = (data) => {
+            renderTypeDistributionChart(data);
+            renderDepartmentChart(data);
+            renderOverallTrendChart(data);
+            renderTypeTrendChart(data);
+        };
+        
+        const renderTypeDistributionChart = (data) => {
+            const ctx = document.getElementById('type-chart').getContext('2d');
+            const typeCounts = data.reduce((acc, item) => {
+                const type = item.announcement_type || '未指定類型';
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {});
+            if (charts.typeDistribution) charts.typeDistribution.destroy();
+            charts.typeDistribution = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: dates,
+                    labels: Object.keys(typeCounts).map(label => wrapLabel(label, 20)),
                     datasets: [{
-                        label: '每日公告數',
-                        data: dates.map(d => dateMap[d]),
-                        borderColor: '#36A2EB',
-                        backgroundColor: 'rgba(54,162,235,0.1)',
-                        fill: true,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#36A2EB',
-                        pointBorderColor: '#fff',
-                        pointHoverRadius: 6,
-                        tension: 0.3
+                        data: Object.values(typeCounts),
+                        backgroundColor: ['#2563eb', '#16a34a', '#f59e0b', '#6b7280', '#dc2626', '#d97706', '#9333ea'],
+                        borderColor: '#f8fafc', borderWidth: 4, hoverOffset: 8
                     }]
                 },
                 options: {
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            anchor: 'end',
-                            align: 'top',
-                            font: { size:12, weight:'bold' },
-                            formatter: function(value) { return value; }
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { padding: 15, font: { size: 12 } } },
+                        tooltip: { callbacks: chartTooltipCallback }
+                    }
+                }
+            });
+        };
+        
+        const renderDepartmentChart = (data) => {
+            const ctx = document.getElementById('department-chart').getContext('2d');
+            const departmentData = data.reduce((acc, item) => {
+                if (item['影響單位']) {
+                    item['影響單位'].split(',').forEach(dep => {
+                        const d = dep.trim(); 
+                        if (d) {
+                            if (!acc[d]) acc[d] = { count: 0, titles: [] };
+                            acc[d].count++;
+                            acc[d].titles.push(item.title);
+                        }
+                    });
+                }
+                return acc;
+            }, {});
+            
+            const sortedDepartments = Object.entries(departmentData).sort((a, b) => b[1].count - a[1].count);
+
+            if (charts.department) charts.department.destroy();
+            charts.department = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedDepartments.map(entry => wrapLabel(entry[0], 15)),
+                    datasets: [{
+                        label: '項目數量', 
+                        data: sortedDepartments.map(entry => entry[1].count),
+                        customData: sortedDepartments.map(entry => entry[1].titles),
+                        backgroundColor: '#60a5fa', borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false }, 
+                        tooltip: { 
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return tooltipItems[0].label.replaceAll(',', ' ');
+                                },
+                                label: function(context) {
+                                    const count = context.raw;
+                                    const titles = context.dataset.customData[context.dataIndex];
+                                    let label = [`數量: ${count}`];
+                                    if(titles && titles.length) {
+                                       titles.forEach((title, i) => {
+                                           label.push(`${i+1}. ${title.slice(0, 30)}${title.length > 30 ? '...' : ''}`);
+                                       });
+                                    }
+                                    return label;
+                                }
+                            }
                         }
                     },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { precision:0 } }
+                    scales: { 
+                        x: { ticks: { stepSize: 1 } },
+                        y: { ticks: { font: { size: 12 } } }
                     }
-                },
-                plugins: [ChartDataLabels]
+                }
             });
-        }
-        function drawAllTypeTrends() {
-            grouped.value.forEach((block, idx) => drawTypeTrend(idx, block.items));
-        }
-
-        function sortBy(field) {
-            if (sortField.value === field) {
-                sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortField.value = field;
-                sortDirection.value = 'asc';
-            }
-        }
-
-        onMounted(loadData);
-
-        return {
-            regulations,
-            searchText,
-            filteredRegulations,
-            grouped,
-            sortBy,
-            sortField,
-            sortDirection,
-            formatDate,
-            showItems,
-            moreOpen,
-            toggleMore,
-            pieTypes
         };
-    }
-}).mount('#app');
-</script>
+
+        const generateDateLabelsSince = (startDate) => {
+            const labels = [];
+            let currentDate = new Date(startDate);
+            const today = new Date();
+            while (currentDate <= today) {
+                labels.push(currentDate.toISOString().slice(0, 10));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            return labels;
+        };
+        
+        const renderOverallTrendChart = (data) => {
+            const ctx = document.getElementById('overall-trend-chart').getContext('2d');
+            const startDate = new Date('2025-06-09');
+            const dateLabels = generateDateLabelsSince(startDate);
+            const dailyCounts = new Array(dateLabels.length).fill(0);
+
+            data.forEach(item => {
+                if (item.date) {
+                   const itemDate = new Date(item.date);
+                   if (itemDate >= startDate) {
+                       const diffTime = Math.abs(itemDate - startDate);
+                       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                       if(diffDays < dailyCounts.length) {
+                          dailyCounts[diffDays]++;
+                       }
+                   }
+                }
+            });
+
+            if (charts.overallTrend) charts.overallTrend.destroy();
+            charts.overallTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dateLabels,
+                    datasets: [{
+                        label: '每日新增情資總數', data: dailyCounts,
+                        borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true, tension: 0.4, pointBackgroundColor: '#2563eb', pointRadius: 3, pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { align: 'end' }, tooltip: { callbacks: chartTooltipCallback } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: function(value) { if (Number.isInteger(value)) return value; } } } }
+                }
+            });
+        };
+
+        const renderTypeTrendChart = (data) => {
+            const ctx = document.getElementById('type-trend-chart').getContext('2d');
+            const startDate = new Date('2025-06-09');
+            const dateLabels = generateDateLabelsSince(startDate);
+            const types = [...new Set(data.map(item => item.announcement_type || '未指定類型'))];
+            const trendColors = ['#2563eb', '#16a34a', '#dc2626', '#f59e0b', '#9333ea', '#64748b', '#d97706'];
+            
+            const datasets = types.map((type, index) => {
+                const dailyCounts = new Array(dateLabels.length).fill(0);
+                data.forEach(item => {
+                    if (item.announcement_type === type && item.date) {
+                        const itemDate = new Date(item.date);
+                        if (itemDate >= startDate) {
+                            const diffTime = Math.abs(itemDate - startDate);
+                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                            if (diffDays >= 0 && diffDays < dailyCounts.length) {
+                                dailyCounts[diffDays]++;
+                            }
+                        }
+                    }
+                });
+                const color = trendColors[index % trendColors.length];
+                return {
+                    label: wrapLabel(type, 15), data: dailyCounts,
+                    borderColor: color, backgroundColor: color + '1a', fill: false,
+                    tension: 0.4, pointBackgroundColor: color, pointRadius: 3, pointHoverRadius: 5
+                };
+            });
+
+            if (charts.typeTrend) charts.typeTrend.destroy();
+            charts.typeTrend = new Chart(ctx, {
+                type: 'line',
+                data: { labels: dateLabels, datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'bottom', labels: {
+                                padding: 15, font: { size: 12 }, boxWidth: 20,
+                                generateLabels: function(chart) {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
+                                    const labels = original.call(this, chart);
+                                    labels.forEach(label => {
+                                        if(Array.isArray(chart.data.datasets[label.datasetIndex].label)) {
+                                            label.text = chart.data.datasets[label.datasetIndex].label.join(' ');
+                                        }
+                                    });
+                                    return labels;
+                                }
+                            }
+                        },
+                        tooltip: { 
+                            callbacks: {
+                                title: (tooltipItems) => tooltipItems[0].dataset.label,
+                                label: (context) => `${context.chart.data.labels[context.dataIndex]}: ${context.raw}`
+                            },
+                             mode: 'index', intersect: false,
+                        }
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { callback: function(value) { if (Number.isInteger(value)) return value; } } } }
+                }
+            });
+        };
+
+        init();
+    });
+    </script>
 </body>
 </html>
