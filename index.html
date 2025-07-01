@@ -141,14 +141,8 @@
         const processRawData = (data) => {
             return data.map((item, index) => {
                 let formattedDate = '';
-                if (item.date) {
-                    const d = new Date(item.date);
-                    if (!isNaN(d)) {
-                        const year = d.getFullYear();
-                        const month = String(d.getMonth() + 1).padStart(2, '0');
-                        const day = String(d.getDate()).padStart(2, '0');
-                        formattedDate = `${year}-${month}-${day}`;
-                    }
+                if (item.date && typeof item.date === 'string') {
+                    formattedDate = item.date.slice(0, 10);
                 }
                 return {
                     id: `item-${index}`, ...item,
@@ -169,6 +163,15 @@
                 if (item['等級'] === 'C') return { class: 'light-green', title: '低風險/優先級 (適用、C級)' };
             }
             return { class: 'none', title: '尚待評估或無燈號' };
+        };
+
+        const getLevelTooltip = (level) => {
+            switch (level) {
+                case 'A': return 'A級：有適用、有影響、三個月內有立即違法風險, 須因應。';
+                case 'B': return 'B級：有適用、有影響、因應期三個月以上, 草案須預應。';
+                case 'C': return 'C級：有適用但經鑑別後無影響。';
+                default: return '';
+            }
         };
 
         const setupEventListeners = () => {
@@ -301,7 +304,10 @@
                 const parts = [];
                 if (item['適用性']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-red-800 bg-red-200">${item['適用性']}</span>`);
                 if (item['狀態']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-blue-800 bg-blue-200">${item['狀態']}</span>`);
-                if (item['等級']) parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-gray-800 bg-gray-200">等級 ${item['等級']}</span>`);
+                if (item['等級']) {
+                    const tooltipText = getLevelTooltip(item['等級']);
+                    parts.push(`<span class="text-xs font-semibold inline-block py-1 px-2.5 uppercase rounded-full text-gray-800 bg-gray-200" title="${tooltipText}">等級 ${item['等級']}</span>`);
+                }
                 statusBadgesHtml = parts.join('');
             }
             return `
