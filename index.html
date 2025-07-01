@@ -123,7 +123,7 @@
         let moreExpandedState = {};
 
         const init = async () => {
-            const dataUrl = 'https://script.google.com/macros/s/AKfycbwH74JqBJa7gVK-QvBeZjeSaTZCrjAcMerveHxGV28fy_ERqqv3T-6UO9od-Mn86s1O/exec';
+            const dataUrl = 'https://script.google.com/macros/s/AKfycbydRM4pooJKaYpzlf_V10Q68w6cd6u2l37lokUNi1asgBOds7s_uEsd4WPGbal3EUgj/exec';
             try {
                 const response = await fetch(dataUrl);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -139,12 +139,24 @@
         };
 
         const processRawData = (data) => {
-            return data.map((item, index) => ({
-                id: `item-${index}`, ...item,
-                適用性: item['適用性'] || '', 狀態: item['狀態'] || '', 等級: item['等級'] || '',
-                影響單位: item['影響單位'] ? item['影響單位'].replace(/\n/g, ', ') : '',
-                date: item.date ? item.date.slice(0, 10) : ''
-            }));
+            return data.map((item, index) => {
+                let formattedDate = '';
+                if (item.date) {
+                    const d = new Date(item.date);
+                    if (!isNaN(d)) {
+                        const year = d.getFullYear();
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        formattedDate = `${year}-${month}-${day}`;
+                    }
+                }
+                return {
+                    id: `item-${index}`, ...item,
+                    適用性: item['適用性'] || '', 狀態: item['狀態'] || '', 等級: item['等級'] || '',
+                    影響單位: item['影響單位'] ? item['影響單位'].replace(/\n/g, ', ') : '',
+                    date: formattedDate
+                };
+            });
         };
         
         const getTrafficLightInfo = (item) => {
